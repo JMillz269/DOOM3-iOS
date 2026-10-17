@@ -1,0 +1,49 @@
+name: Build DOOM 3 iOS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # The Xcode project references a "base" folder outside the repo
+      # (../../../Library/Application Support/dhewm3/base). Create an empty
+      # placeholder so the Copy Resources phase doesn't fail.
+      - name: Create placeholder game data folder
+        run: mkdir -p "../../../Library/Application Support/dhewm3/base"
+
+      - name: Build (unsigned)
+        run: |
+          xcodebuild build \
+            -project DOOM3-iOS.xcodeproj \
+            -scheme DOOM3-iOS \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            DEVELOPMENT_TEAM="" \
+            | tee build.log
+
+      - name: Package unsigned IPA
+        run: |
+          mkdir Payload
+          cp -R build/Build/Products/Release-iphoneos/*.app Payload/
+          zip -r DOOM3-iOS-unsigned.ipa Payload
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DOOM3-iOS-unsigned-ipa
+          path: DOOM3-iOS-unsigned.ipa
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: build-log
+          path: build.log
